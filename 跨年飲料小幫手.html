@@ -1,0 +1,1286 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>飲料庫存管理系統</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;600&display=swap');
+        
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background: linear-gradient(135deg, #F2EBBF 0%, #8CBEB2 100%);
+            min-height: 100vh;
+        }
+        
+        .muji-card {
+            background: #ffffff;
+            border: 1px solid #8CBEB2;
+            box-shadow: 0 4px 12px rgba(92, 75, 81, 0.1);
+        }
+        
+        .muji-button {
+            background: #5C4B51;
+            color: white;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        
+        .muji-button:hover {
+            background: #F3B562;
+            transform: translateY(-1px);
+        }
+        
+        .muji-button-outline {
+            background: transparent;
+            color: #5C4B51;
+            border: 1px solid #5C4B51;
+            transition: all 0.2s ease;
+        }
+        
+        .muji-button-outline:hover {
+            background: #5C4B51;
+            color: white;
+            transform: translateY(-1px);
+        }
+        
+        .bucket-stack {
+            display: flex;
+            flex-direction: row;
+            align-items: flex-end;
+            justify-content: center;
+            min-height: 120px;
+            max-height: 200px;
+            overflow: hidden;
+            margin: 0 auto;
+            gap: 8px;
+        }
+        
+        .bucket-column {
+            display: flex;
+            flex-direction: column-reverse;
+            gap: 2px;
+            align-items: center;
+        }
+        
+        .small-bucket {
+            width: 18px;
+            height: 16px;
+            position: relative;
+            margin-bottom: 2px;
+            transition: all 0.3s ease;
+        }
+        
+        .small-bucket-container {
+            width: 100%;
+            height: 100%;
+            background: #f5f5f5;
+            border: 1px solid #8CBEB2;
+            border-radius: 0 0 4px 4px;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        .small-bucket-liquid {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            border-radius: 0 0 3px 3px;
+            transition: height 0.3s ease;
+        }
+        
+        .small-bucket-handle {
+            position: absolute;
+            top: 3px;
+            right: -3px;
+            width: 6px;
+            height: 6px;
+            border: 1px solid #8CBEB2;
+            border-left: none;
+            border-radius: 0 3px 3px 0;
+        }
+        
+        .bucket-stack-large {
+            min-height: 160px;
+            max-height: 320px;
+        }
+        
+        .bucket-stack-large .small-bucket {
+            width: 32px;
+            height: 26px;
+        }
+        
+        .bucket-stack-large .small-bucket-handle {
+            width: 10px;
+            height: 10px;
+            right: -5px;
+            top: 6px;
+        }
+        
+        .tea-red { background: #F06060; }
+        .tea-green { background: #8CBEB2; }
+        .coffee-brown { background: #5C4B51; }
+        .milk-tea-beige { background: #F3B562; }
+        
+        .role-selector {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 50;
+        }
+        
+        .notification {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #5C4B51;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 100;
+            box-shadow: 0 4px 12px rgba(92, 75, 81, 0.3);
+        }
+        
+        .notification.show {
+            opacity: 1;
+        }
+    </style>
+</head>
+<body class="min-h-screen">
+    <!-- 角色選擇器 -->
+    <div class="role-selector">
+        <select id="roleSelector" class="px-4 py-2 border border-gray-300 rounded-lg bg-white text-sm">
+            <option value="manager">大總管</option>
+            <option value="store1">信義店店小二</option>
+            <option value="store2">忠孝店店小二</option>
+            <option value="store3">大安店店小二</option>
+            <option value="store4">松山店店小二</option>
+            <option value="store5">中山店店小二</option>
+            <option value="store6">萬華店店小二</option>
+            <option value="store7">內湖店店小二</option>
+            <option value="store8">士林店店小二</option>
+        </select>
+    </div>
+
+    <!-- 通知 -->
+    <div id="notification" class="notification">
+        庫存已更新
+    </div>
+
+    <!-- 主要內容 -->
+    <div class="container mx-auto px-4 py-8 max-w-6xl">
+        <!-- 標題 -->
+        <div class="text-center mb-8">
+            <h1 class="text-3xl font-light mb-2" style="color: #5C4B51;">飲料庫存管理</h1>
+            <p class="font-light" style="color: #5C4B51; opacity: 0.8;">簡潔 · 直覺 · 高效</p>
+        </div>
+
+        <!-- 區經理總覽視圖 -->
+        <div id="managerView" class="space-y-8">
+            <!-- 總庫存概覽 -->
+            <div class="muji-card rounded-lg p-6">
+                <h2 class="text-xl font-medium text-gray-800 mb-6 text-center">總庫存概覽</h2>
+                <div class="grid grid-cols-4 gap-6">
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium mb-4" style="color: #5C4B51;" id="totalBeverage1Name">紅茶</h3>
+                        <div id="totalBeverage1Stack" class="flex justify-center items-center h-32">
+                            <div class="w-20 h-24 relative">
+                                <div class="w-full h-full bg-gray-100 border-2 rounded-b-lg relative overflow-hidden" style="border-color: #8CBEB2;">
+                                    <div id="totalBeverage1Fill" class="absolute bottom-0 left-0 right-0 tea-red rounded-b-lg transition-all duration-300" style="height: 85%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-2xl font-light" style="color: #5C4B51;" id="totalBeverage1Count">56.5桶</p>
+                        <p class="text-lg font-medium" style="color: #5C4B51;" id="totalBeverage1Percent">94%</p>
+                        <p class="text-xs text-gray-500" id="totalBeverage1Initial">期初 60桶</p>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium mb-4" style="color: #5C4B51;" id="totalBeverage2Name">綠茶</h3>
+                        <div id="totalBeverage2Stack" class="flex justify-center items-center h-32">
+                            <div class="w-20 h-24 relative">
+                                <div class="w-full h-full bg-gray-100 border-2 rounded-b-lg relative overflow-hidden" style="border-color: #8CBEB2;">
+                                    <div id="totalBeverage2Fill" class="absolute bottom-0 left-0 right-0 tea-green rounded-b-lg transition-all duration-300" style="height: 75%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-2xl font-light" style="color: #5C4B51;" id="totalBeverage2Count">50.0桶</p>
+                        <p class="text-lg font-medium" style="color: #5C4B51;" id="totalBeverage2Percent">83%</p>
+                        <p class="text-xs text-gray-500" id="totalBeverage2Initial">期初 60桶</p>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium mb-4" style="color: #5C4B51;" id="totalBeverage3Name">咖啡</h3>
+                        <div id="totalBeverage3Stack" class="flex justify-center items-center h-32">
+                            <div class="w-20 h-24 relative">
+                                <div class="w-full h-full bg-gray-100 border-2 rounded-b-lg relative overflow-hidden" style="border-color: #8CBEB2;">
+                                    <div id="totalBeverage3Fill" class="absolute bottom-0 left-0 right-0 coffee-brown rounded-b-lg transition-all duration-300" style="height: 70%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-2xl font-light" style="color: #5C4B51;" id="totalBeverage3Count">46.8桶</p>
+                        <p class="text-lg font-medium" style="color: #5C4B51;" id="totalBeverage3Percent">78%</p>
+                        <p class="text-xs text-gray-500" id="totalBeverage3Initial">期初 60桶</p>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-lg font-medium mb-4" style="color: #5C4B51;" id="totalBeverage4Name">奶茶</h3>
+                        <div id="totalBeverage4Stack" class="flex justify-center items-center h-32">
+                            <div class="w-20 h-24 relative">
+                                <div class="w-full h-full bg-gray-100 border-2 rounded-b-lg relative overflow-hidden" style="border-color: #8CBEB2;">
+                                    <div id="totalBeverage4Fill" class="absolute bottom-0 left-0 right-0 milk-tea-beige rounded-b-lg transition-all duration-300" style="height: 60%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        <p class="mt-3 text-2xl font-light" style="color: #5C4B51;" id="totalBeverage4Count">40.8桶</p>
+                        <p class="text-lg font-medium" style="color: #5C4B51;" id="totalBeverage4Percent">68%</p>
+                        <p class="text-xs text-gray-500" id="totalBeverage4Initial">期初 60桶</p>
+                    </div>
+                </div>
+            </div>
+
+
+
+            <!-- 飲料設定管理 -->
+            <div class="muji-card rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">飲料設定管理</h3>
+                <div class="grid grid-cols-4 gap-4 mb-6">
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">飲料1</label>
+                        <input type="text" id="beverage1Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="紅茶">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">飲料2</label>
+                        <input type="text" id="beverage2Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="綠茶">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">飲料3</label>
+                        <input type="text" id="beverage3Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="咖啡">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">飲料4</label>
+                        <input type="text" id="beverage4Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="奶茶">
+                    </div>
+                </div>
+                <div class="text-center">
+                    <button class="muji-button px-6 py-2 rounded-lg" onclick="updateBeverageNames()">更新飲料名稱</button>
+                </div>
+            </div>
+
+            <!-- 分店設定管理 -->
+            <div class="muji-card rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">分店設定管理</h3>
+                <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店1</label>
+                        <input type="text" id="store1Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="信義店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店2</label>
+                        <input type="text" id="store2Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="忠孝店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店3</label>
+                        <input type="text" id="store3Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="大安店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店4</label>
+                        <input type="text" id="store4Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="松山店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店5</label>
+                        <input type="text" id="store5Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="中山店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店6</label>
+                        <input type="text" id="store6Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="萬華店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店7</label>
+                        <input type="text" id="store7Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="內湖店">
+                    </div>
+                    <div class="text-center">
+                        <label class="block text-sm text-gray-600 mb-2">分店8</label>
+                        <input type="text" id="store8Name" class="w-full px-3 py-2 border border-gray-300 rounded-lg text-center" value="士林店">
+                    </div>
+                </div>
+                <div class="text-center mb-6">
+                    <button class="muji-button px-6 py-2 rounded-lg mr-4" onclick="updateStoreNames()">更新分店名稱</button>
+                    <button class="muji-button-outline px-6 py-2 rounded-lg" onclick="showInitialInventoryModal()">設定期初庫存</button>
+                </div>
+            </div>
+
+            <!-- 分店總覽 -->
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-4" id="storeOverview">
+                <!-- 動態生成分店卡片 -->
+            </div>
+
+            <!-- 便當點心配送管理 -->
+            <div class="muji-card rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">便當點心配送管理</h3>
+                <div class="text-center mb-6">
+                    <button class="muji-button px-6 py-2 rounded-lg" onclick="showDeliverySettingsModal()">設定各店配送數量</button>
+                    <button class="muji-button-outline px-6 py-2 rounded-lg ml-4" onclick="resetAllDeliveryStatus()">重置所有回報狀態</button>
+                </div>
+                
+                <!-- 各店回報狀態總覽 -->
+                <div class="border-t pt-6">
+                    <h4 class="text-md font-medium text-gray-700 mb-4">各店回報狀態</h4>
+                    <div id="deliveryStatusOverview" class="grid grid-cols-2 lg:grid-cols-4 gap-4">
+                        <!-- 動態生成回報狀態 -->
+                    </div>
+                </div>
+            </div>
+
+            <!-- 調撥建議 -->
+            <div class="muji-card rounded-lg p-6">
+                <h3 class="text-lg font-medium text-gray-800 mb-4">調撥建議</h3>
+                <div id="suggestions" class="space-y-2 text-sm text-gray-600">
+                    <p>• 系統正在分析各店庫存狀況...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- 店長操作視圖 -->
+        <div id="storeView" class="hidden">
+            <div class="muji-card rounded-lg p-8">
+                <h2 id="storeTitle" class="text-2xl font-light text-gray-800 mb-8 text-center">信義店店小二庫存管理</h2>
+                
+                <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                    <!-- 飲料1 -->
+                    <div class="text-center">
+                        <h3 class="text-xl font-medium text-gray-700 mb-6" id="storeBeverage1Name">紅茶</h3>
+                        <div id="storeBeverage1Stack" class="bucket-stack bucket-stack-large mb-6"></div>
+                        <p class="text-2xl font-light text-gray-800 mb-6" id="storeBeverage1Count">8.5桶</p>
+                        <div class="flex justify-center space-x-2">
+                            <button class="muji-button-outline px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('redTea', -1)">-</button>
+                            <button class="muji-button px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('redTea', 1)">+</button>
+                        </div>
+                    </div>
+
+                    <!-- 飲料2 -->
+                    <div class="text-center">
+                        <h3 class="text-xl font-medium text-gray-700 mb-6" id="storeBeverage2Name">綠茶</h3>
+                        <div id="storeBeverage2Stack" class="bucket-stack bucket-stack-large mb-6"></div>
+                        <p class="text-2xl font-light text-gray-800 mb-6" id="storeBeverage2Count">7.2桶</p>
+                        <div class="flex justify-center space-x-2">
+                            <button class="muji-button-outline px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('greenTea', -1)">-</button>
+                            <button class="muji-button px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('greenTea', 1)">+</button>
+                        </div>
+                    </div>
+
+                    <!-- 飲料3 -->
+                    <div class="text-center">
+                        <h3 class="text-xl font-medium text-gray-700 mb-6" id="storeBeverage3Name">咖啡</h3>
+                        <div id="storeBeverage3Stack" class="bucket-stack bucket-stack-large mb-6"></div>
+                        <p class="text-2xl font-light text-gray-800 mb-6" id="storeBeverage3Count">6.8桶</p>
+                        <div class="flex justify-center space-x-2">
+                            <button class="muji-button-outline px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('coffee', -1)">-</button>
+                            <button class="muji-button px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('coffee', 1)">+</button>
+                        </div>
+                    </div>
+
+                    <!-- 飲料4 -->
+                    <div class="text-center">
+                        <h3 class="text-xl font-medium text-gray-700 mb-6" id="storeBeverage4Name">奶茶</h3>
+                        <div id="storeBeverage4Stack" class="bucket-stack bucket-stack-large mb-6"></div>
+                        <p class="text-2xl font-light text-gray-800 mb-6" id="storeBeverage4Count">5.3桶</p>
+                        <div class="flex justify-center space-x-2">
+                            <button class="muji-button-outline px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('milkTea', -1)">-</button>
+                            <button class="muji-button px-3 py-2 rounded-full text-sm font-medium" onclick="adjustInventory('milkTea', 1)">+</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 快速操作 -->
+                <div class="mt-12 pt-8 border-t border-gray-200">
+                    <h4 class="text-lg font-medium text-gray-700 mb-4 text-center">快速操作</h4>
+                    <div class="flex justify-center space-x-4">
+                        <button class="muji-button-outline px-6 py-3 rounded-lg" onclick="exportReport()">匯出報表</button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 便當點心到貨回報 -->
+            <div class="muji-card rounded-lg p-8 mt-8">
+                <h2 id="deliveryReportTitle" class="text-2xl font-light text-gray-800 mb-8 text-center">便當點心到貨回報</h2>
+                
+                <!-- 配送數量顯示 -->
+                <div class="grid grid-cols-2 gap-8 mb-8">
+                    <div class="text-center">
+                        <h3 class="text-xl font-medium text-gray-700 mb-4">便當</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="muji-card rounded-lg p-4">
+                                <p class="text-sm text-gray-600 mb-2">葷食便當</p>
+                                <p class="text-2xl font-light text-gray-800" id="storeMeatLunchBox">50個</p>
+                            </div>
+                            <div class="muji-card rounded-lg p-4">
+                                <p class="text-sm text-gray-600 mb-2">素食便當</p>
+                                <p class="text-2xl font-light text-gray-800" id="storeVegLunchBox">20個</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="text-center">
+                        <h3 class="text-xl font-medium text-gray-700 mb-4">點心</h3>
+                        <div class="grid grid-cols-2 gap-4">
+                            <div class="muji-card rounded-lg p-4">
+                                <p class="text-sm text-gray-600 mb-2">葷食點心</p>
+                                <p class="text-2xl font-light text-gray-800" id="storeMeatSnack">30個</p>
+                            </div>
+                            <div class="muji-card rounded-lg p-4">
+                                <p class="text-sm text-gray-600 mb-2">素食點心</p>
+                                <p class="text-2xl font-light text-gray-800" id="storeVegSnack">15個</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 回報按鈕 -->
+                <div class="text-center mb-8">
+                    <div id="deliveryButtons" class="space-x-4">
+                        <button class="muji-button px-8 py-3 rounded-lg text-lg" onclick="reportCorrect()">✓ 數量正確</button>
+                        <button class="muji-button-outline px-8 py-3 rounded-lg text-lg" onclick="reportIncorrect()">✗ 數量不正確</button>
+                    </div>
+                    <div id="resetReportButton" class="hidden mt-4">
+                        <button class="text-white px-6 py-2 rounded-lg text-sm transition-all duration-200 hover:transform hover:translate-y-[-1px]" style="background: #F06060;" onmouseover="this.style.background='#F3B562'" onmouseout="this.style.background='#F06060'" onclick="resetStoreReport()">🔄 重新回報</button>
+                    </div>
+                </div>
+
+                <!-- 回報狀態顯示 -->
+                <div id="deliveryStatus" class="space-y-4">
+                    <!-- 動態生成回報狀態 -->
+                </div>
+
+                <!-- 不正確原因輸入 -->
+                <div id="incorrectReasonSection" class="hidden mt-6 p-4 bg-red-50 rounded-lg">
+                    <h4 class="text-lg font-medium text-red-800 mb-4">請說明不正確原因</h4>
+                    <textarea id="incorrectReason" class="w-full px-4 py-3 border border-red-300 rounded-lg resize-none" rows="3" placeholder="請詳細說明收到的數量與預期不符的情況..."></textarea>
+                    <div class="text-center mt-4">
+                        <button class="muji-button px-6 py-2 rounded-lg" onclick="submitIncorrectReason()">提交原因</button>
+                        <button class="muji-button-outline px-6 py-2 rounded-lg ml-4" onclick="cancelIncorrectReport()">取消</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 期初庫存設定彈窗 -->
+    <div id="initialInventoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-8 max-w-4xl w-full mx-4 max-h-96 overflow-y-auto">
+            <h3 class="text-xl font-medium text-gray-800 mb-6 text-center">設定期初庫存</h3>
+            <div id="initialInventoryGrid" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <!-- 動態生成庫存設定表格 -->
+            </div>
+            <div class="flex justify-center space-x-4 mt-8">
+                <button class="muji-button px-6 py-3 rounded-lg" onclick="applyInitialInventory()">套用設定</button>
+                <button class="muji-button-outline px-6 py-3 rounded-lg" onclick="closeInitialInventoryModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 配送設定彈窗 -->
+    <div id="deliverySettingsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50 flex items-center justify-center">
+        <div class="bg-white rounded-lg p-8 max-w-6xl w-full mx-4 max-h-96 overflow-y-auto">
+            <h3 class="text-xl font-medium text-gray-800 mb-6 text-center">設定各店配送數量</h3>
+            <div id="deliverySettingsGrid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                <!-- 動態生成配送設定表格 -->
+            </div>
+            <div class="flex justify-center space-x-4 mt-8">
+                <button class="muji-button px-6 py-3 rounded-lg" onclick="applyDeliverySettings()">套用設定</button>
+                <button class="muji-button-outline px-6 py-3 rounded-lg" onclick="closeDeliverySettingsModal()">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // 庫存資料
+        let inventory = {
+            store1: { redTea: 8.5, greenTea: 7.2, coffee: 6.8, milkTea: 5.3 },
+            store2: { redTea: 6.3, greenTea: 5.1, coffee: 4.7, milkTea: 3.9 },
+            store3: { redTea: 7.1, greenTea: 6.4, coffee: 5.2, milkTea: 4.6 },
+            store4: { redTea: 5.8, greenTea: 4.9, coffee: 6.1, milkTea: 5.7 },
+            store5: { redTea: 9.2, greenTea: 8.1, coffee: 7.3, milkTea: 6.8 },
+            store6: { redTea: 4.6, greenTea: 3.8, coffee: 4.2, milkTea: 3.5 },
+            store7: { redTea: 6.9, greenTea: 7.6, coffee: 5.9, milkTea: 4.8 },
+            store8: { redTea: 8.1, greenTea: 6.7, coffee: 7.4, milkTea: 6.2 }
+        };
+
+        // 飲料設定
+        let beverageSettings = {
+            redTea: { name: '紅茶', color: 'tea-red' },
+            greenTea: { name: '綠茶', color: 'tea-green' },
+            coffee: { name: '咖啡', color: 'coffee-brown' },
+            milkTea: { name: '奶茶', color: 'milk-tea-beige' }
+        };
+
+        // 分店名稱設定
+        let storeSettings = {
+            store1: '信義店', store2: '忠孝店', store3: '大安店', store4: '松山店',
+            store5: '中山店', store6: '萬華店', store7: '內湖店', store8: '士林店'
+        };
+
+        // 期初庫存設定 - 各分店各飲料的期初庫存
+        let initialInventorySettings = {
+            store1: { redTea: 10.0, greenTea: 9.0, coffee: 8.5, milkTea: 7.5 },
+            store2: { redTea: 8.0, greenTea: 7.5, coffee: 7.0, milkTea: 6.5 },
+            store3: { redTea: 9.0, greenTea: 8.0, coffee: 7.5, milkTea: 6.0 },
+            store4: { redTea: 7.5, greenTea: 6.5, coffee: 8.0, milkTea: 7.0 },
+            store5: { redTea: 10.5, greenTea: 9.5, coffee: 8.0, milkTea: 8.5 },
+            store6: { redTea: 6.0, greenTea: 5.5, coffee: 6.0, milkTea: 5.0 },
+            store7: { redTea: 8.5, greenTea: 9.0, coffee: 7.0, milkTea: 6.5 },
+            store8: { redTea: 9.5, greenTea: 8.0, coffee: 8.5, milkTea: 7.5 }
+        };
+
+        // 便當點心配送設定 - 各店獨立設定
+        let deliverySettings = {};
+        
+        // 初始化各店配送設定
+        Object.keys(storeSettings).forEach(storeKey => {
+            deliverySettings[storeKey] = {
+                meatLunchBox: 50,
+                vegLunchBox: 20,
+                meatSnack: 30,
+                vegSnack: 15
+            };
+        });
+
+        // 各店到貨回報狀態
+        let deliveryReports = {};
+
+        // 初始化各店回報狀態
+        Object.keys(storeSettings).forEach(storeKey => {
+            deliveryReports[storeKey] = {
+                status: 'pending', // pending, correct, incorrect, corrected
+                firstReportTime: null,
+                secondReportTime: null,
+                incorrectReason: ''
+            };
+        });
+
+        let currentRole = 'manager';
+        let currentStore = 'store1';
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            updateAllDisplays();
+            updateDeliveryDisplays();
+            
+            document.getElementById('roleSelector').addEventListener('change', function(e) {
+                switchRole(e.target.value);
+            });
+        });
+
+        // 切換角色
+        function switchRole(role) {
+            currentRole = role;
+            
+            if (role === 'manager') {
+                document.getElementById('managerView').classList.remove('hidden');
+                document.getElementById('storeView').classList.add('hidden');
+                generateStoreOverview();
+                updateDeliveryStatusOverview();
+            } else {
+                document.getElementById('managerView').classList.add('hidden');
+                document.getElementById('storeView').classList.remove('hidden');
+                
+                currentStore = role;
+                const storeName = storeSettings[role];
+                document.getElementById('storeTitle').textContent = `${storeName}店小二庫存管理`;
+                updateStoreView();
+                updateStoreDeliveryView();
+            }
+        }
+
+        // 更新飲料名稱
+        function updateBeverageNames() {
+            const beverageKeys = ['redTea', 'greenTea', 'coffee', 'milkTea'];
+            
+            for (let i = 0; i < 4; i++) {
+                const newName = document.getElementById(`beverage${i+1}Name`).value.trim();
+                if (newName) {
+                    beverageSettings[beverageKeys[i]].name = newName;
+                }
+            }
+            
+            updateAllDisplays();
+            showNotification('飲料名稱已更新');
+        }
+
+        // 更新分店名稱
+        function updateStoreNames() {
+            const storeKeys = Object.keys(storeSettings);
+            
+            for (let i = 0; i < 8; i++) {
+                const newName = document.getElementById(`store${i+1}Name`).value.trim();
+                if (newName) {
+                    storeSettings[storeKeys[i]] = newName;
+                }
+            }
+            
+            updateRoleSelector();
+            updateAllDisplays();
+            showNotification('分店名稱已更新');
+        }
+
+        // 更新角色選擇器
+        function updateRoleSelector() {
+            const roleSelector = document.getElementById('roleSelector');
+            const currentValue = roleSelector.value;
+            
+            // 更新選項文字
+            const options = roleSelector.options;
+            for (let i = 1; i < options.length; i++) {
+                const storeKey = options[i].value;
+                options[i].text = `${storeSettings[storeKey]}店小二`;
+            }
+        }
+
+        // 顯示期初庫存設定彈窗
+        function showInitialInventoryModal() {
+            const modal = document.getElementById('initialInventoryModal');
+            const grid = document.getElementById('initialInventoryGrid');
+            
+            grid.innerHTML = '';
+            
+            Object.keys(inventory).forEach(storeKey => {
+                const storeName = storeSettings[storeKey];
+                const store = inventory[storeKey];
+                
+                const storeDiv = document.createElement('div');
+                storeDiv.className = 'muji-card rounded-lg p-4';
+                
+                let html = `<h4 class="text-lg font-medium text-gray-800 mb-4 text-center">${storeName}</h4>`;
+                html += '<div class="space-y-3">';
+                
+                Object.keys(beverageSettings).forEach(bevKey => {
+                    const bevName = beverageSettings[bevKey].name;
+                    html += `
+                        <div class="flex justify-between items-center">
+                            <label class="text-sm text-gray-600">${bevName}</label>
+                            <input type="number" id="init_${storeKey}_${bevKey}" 
+                                   class="w-20 px-2 py-1 border border-gray-300 rounded text-center" 
+                                   value="${store[bevKey].toFixed(1)}" step="0.1" min="0" max="20">
+                        </div>
+                    `;
+                });
+                
+                html += '</div>';
+                storeDiv.innerHTML = html;
+                grid.appendChild(storeDiv);
+            });
+            
+            modal.classList.remove('hidden');
+        }
+
+        // 關閉期初庫存設定彈窗
+        function closeInitialInventoryModal() {
+            document.getElementById('initialInventoryModal').classList.add('hidden');
+        }
+
+        // 套用期初庫存設定
+        function applyInitialInventory() {
+            Object.keys(inventory).forEach(storeKey => {
+                Object.keys(beverageSettings).forEach(bevKey => {
+                    const input = document.getElementById(`init_${storeKey}_${bevKey}`);
+                    if (input) {
+                        const value = parseFloat(input.value) || 0;
+                        inventory[storeKey][bevKey] = Math.max(0, Math.min(20, value));
+                    }
+                });
+            });
+            
+            updateAllDisplays();
+            closeInitialInventoryModal();
+            showNotification('期初庫存已更新');
+        }
+
+        // 調整庫存
+        function adjustInventory(beverage, change) {
+            const store = inventory[currentStore];
+            const newValue = Math.max(0, Math.min(20, Math.round((store[beverage] + change * 0.1) * 10) / 10));
+            
+            if (newValue !== store[beverage]) {
+                store[beverage] = newValue;
+                updateAllDisplays();
+                showNotification(`${getBeverageName(beverage)}庫存已${change > 0 ? '增加' : '減少'}`);
+            }
+        }
+
+        // 快速補滿
+        function quickRefill() {
+            const store = inventory[currentStore];
+            store.redTea = 10.0;
+            store.greenTea = 10.0;
+            store.coffee = 10.0;
+            store.milkTea = 10.0;
+            updateAllDisplays();
+            showNotification('所有飲料已補滿');
+        }
+
+        // 匯出報表
+        function exportReport() {
+            const storeName = storeSettings[currentStore];
+            const store = inventory[currentStore];
+            const beverageKeys = Object.keys(beverageSettings);
+            
+            let report = `${storeName}庫存報表\n`;
+            let total = 0;
+            
+            beverageKeys.forEach(key => {
+                const name = beverageSettings[key].name;
+                const amount = store[key];
+                report += `${name}: ${amount.toFixed(1)}桶\n`;
+                total += amount;
+            });
+            
+            report += `總計: ${total.toFixed(1)}桶`;
+            
+            // 模擬下載
+            const blob = new Blob([report], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `${storeName}庫存報表.txt`;
+            a.click();
+            URL.revokeObjectURL(url);
+            
+            showNotification('報表已匯出');
+        }
+
+        // 更新所有顯示
+        function updateAllDisplays() {
+            updateManagerView();
+            updateStoreView();
+        }
+
+        // 更新區經理視圖
+        function updateManagerView() {
+            const beverageKeys = Object.keys(beverageSettings);
+            const total = {};
+            
+            // 計算總庫存
+            beverageKeys.forEach(key => {
+                total[key] = 0;
+                Object.keys(inventory).forEach(store => {
+                    total[key] += inventory[store][key];
+                });
+            });
+
+            // 計算各飲料的期初總量
+            const initialTotal = {};
+            beverageKeys.forEach(key => {
+                initialTotal[key] = 0;
+                Object.keys(initialInventorySettings).forEach(store => {
+                    initialTotal[key] += initialInventorySettings[store][key];
+                });
+            });
+
+            // 更新總庫存顯示
+            beverageKeys.forEach((key, index) => {
+                const setting = beverageSettings[key];
+                const initialAmount = initialTotal[key];
+                const currentAmount = total[key];
+                const percentage = Math.round((currentAmount / initialAmount) * 100);
+                const fillPercentage = Math.min(100, percentage); // 用於視覺顯示
+                
+                document.getElementById(`totalBeverage${index+1}Fill`).style.height = `${Math.max(10, fillPercentage)}%`;
+                document.getElementById(`totalBeverage${index+1}Count`).textContent = `${currentAmount.toFixed(1)}桶`;
+                document.getElementById(`totalBeverage${index+1}Percent`).textContent = `${percentage}%`;
+                document.getElementById(`totalBeverage${index+1}Initial`).textContent = `期初 ${initialAmount.toFixed(1)}桶`;
+                document.getElementById(`totalBeverage${index+1}Name`).textContent = setting.name;
+            });
+
+            // 更新分店總覽
+            generateStoreOverview();
+
+            // 更新建議
+            updateSuggestions();
+        }
+
+        // 生成分店總覽
+        function generateStoreOverview() {
+            const storeOverview = document.getElementById('storeOverview');
+            storeOverview.innerHTML = '';
+
+            Object.keys(inventory).forEach(storeKey => {
+                const storeCard = document.createElement('div');
+                storeCard.className = 'muji-card rounded-lg p-4';
+                
+                const storeName = storeSettings[storeKey];
+                const store = inventory[storeKey];
+                const beverageKeys = Object.keys(beverageSettings);
+                
+                let cardHTML = `<h4 class="text-md font-medium text-gray-800 mb-4 text-center">${storeName}</h4>`;
+                cardHTML += '<div class="grid grid-cols-2 gap-3">';
+                
+                beverageKeys.forEach(key => {
+                    const setting = beverageSettings[key];
+                    cardHTML += `
+                        <div class="text-center">
+                            <p class="text-xs text-gray-600 mb-1">${setting.name}</p>
+                            <div id="${storeKey}${key}Stack" class="bucket-stack" style="min-height: 60px; max-height: 80px;"></div>
+                            <p class="mt-1 text-sm font-light">${store[key].toFixed(1)}桶</p>
+                        </div>
+                    `;
+                });
+                
+                cardHTML += '</div>';
+                storeCard.innerHTML = cardHTML;
+                storeOverview.appendChild(storeCard);
+                
+                // 更新桶子顯示
+                beverageKeys.forEach(key => {
+                    const setting = beverageSettings[key];
+                    updateBucketStack(`${storeKey}${key}Stack`, store[key], setting.color);
+                });
+            });
+        }
+
+        // 更新店長視圖
+        function updateStoreView() {
+            if (currentRole === 'manager') return;
+            
+            const store = inventory[currentStore];
+            const beverageKeys = Object.keys(beverageSettings);
+            
+            beverageKeys.forEach((key, index) => {
+                const setting = beverageSettings[key];
+                updateBucketStack(`storeBeverage${index+1}Stack`, store[key], setting.color);
+                document.getElementById(`storeBeverage${index+1}Count`).textContent = `${store[key].toFixed(1)}桶`;
+                document.getElementById(`storeBeverage${index+1}Name`).textContent = setting.name;
+            });
+        }
+
+        // 更新堆疊桶子顯示
+        function updateBucketStack(elementId, amount, colorClass) {
+            const container = document.getElementById(elementId);
+            container.innerHTML = '';
+            
+            const fullBuckets = Math.floor(amount);
+            const partialBucket = amount - fullBuckets;
+            
+            // 計算需要多少個5桶的完整列
+            const fullColumns = Math.floor(fullBuckets / 5);
+            const remainingBuckets = fullBuckets % 5;
+            
+            // 創建完整的5桶列
+            for (let col = 0; col < fullColumns; col++) {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'bucket-column';
+                
+                for (let i = 0; i < 5; i++) {
+                    const bucket = createSmallBucket(colorClass, 100);
+                    columnDiv.appendChild(bucket);
+                }
+                
+                container.appendChild(columnDiv);
+            }
+            
+            // 如果有剩餘桶子或小數部分，創建最後一列
+            if (remainingBuckets > 0 || partialBucket > 0) {
+                const columnDiv = document.createElement('div');
+                columnDiv.className = 'bucket-column';
+                
+                // 先添加完整的剩餘桶子
+                for (let i = 0; i < remainingBuckets; i++) {
+                    const bucket = createSmallBucket(colorClass, 100);
+                    columnDiv.appendChild(bucket);
+                }
+                
+                // 如果有小數部分，添加部分桶子在最上方
+                if (partialBucket > 0) {
+                    const bucket = createSmallBucket(colorClass, partialBucket * 100);
+                    columnDiv.appendChild(bucket);
+                }
+                
+                container.appendChild(columnDiv);
+            }
+        }
+        
+        // 創建小桶子元素
+        function createSmallBucket(colorClass, fillPercentage) {
+            const bucket = document.createElement('div');
+            bucket.className = 'small-bucket';
+            
+            const container = document.createElement('div');
+            container.className = 'small-bucket-container';
+            
+            const liquid = document.createElement('div');
+            liquid.className = `small-bucket-liquid ${colorClass}`;
+            liquid.style.height = `${Math.max(10, fillPercentage)}%`;
+            
+            const handle = document.createElement('div');
+            handle.className = 'small-bucket-handle';
+            
+            container.appendChild(liquid);
+            bucket.appendChild(container);
+            bucket.appendChild(handle);
+            
+            return bucket;
+        }
+
+        // 更新建議
+        function updateSuggestions() {
+            const suggestions = [];
+            const beverageKeys = Object.keys(beverageSettings);
+            
+            // 檢查低庫存
+            Object.keys(inventory).forEach(storeKey => {
+                const store = inventory[storeKey];
+                const storeName = storeSettings[storeKey];
+                
+                beverageKeys.forEach(bevKey => {
+                    const beverageName = beverageSettings[bevKey].name;
+                    if (store[bevKey] < 2) {
+                        suggestions.push(`• ${storeName}${beverageName}庫存偏低(${store[bevKey].toFixed(1)}桶)，建議補貨`);
+                    }
+                });
+            });
+            
+            // 檢查調撥機會
+            beverageKeys.forEach(bevKey => {
+                const beverageName = beverageSettings[bevKey].name;
+                const highStores = [];
+                const lowStores = [];
+                
+                Object.keys(inventory).forEach(storeKey => {
+                    const amount = inventory[storeKey][bevKey];
+                    if (amount > 8) highStores.push({store: storeKey, amount});
+                    if (amount < 2) lowStores.push({store: storeKey, amount});
+                });
+                
+                if (highStores.length > 0 && lowStores.length > 0) {
+                    const highStore = storeSettings[highStores[0].store];
+                    const lowStore = storeSettings[lowStores[0].store];
+                    suggestions.push(`• 可考慮將${highStore}的${beverageName}調撥至${lowStore}`);
+                }
+            });
+            
+            if (suggestions.length === 0) {
+                suggestions.push('• 目前庫存狀況良好，各店庫存均衡');
+            }
+            
+            document.getElementById('suggestions').innerHTML = suggestions.slice(0, 5).join('<br>');
+        }
+
+        // 顯示通知
+        function showNotification(message) {
+            const notification = document.getElementById('notification');
+            notification.textContent = message;
+            notification.classList.add('show');
+            
+            setTimeout(() => {
+                notification.classList.remove('show');
+            }, 2000);
+        }
+
+        // 獲取飲料名稱
+        function getBeverageName(beverage) {
+            return beverageSettings[beverage] ? beverageSettings[beverage].name : beverage;
+        }
+
+        // 顯示配送設定彈窗
+        function showDeliverySettingsModal() {
+            const modal = document.getElementById('deliverySettingsModal');
+            const grid = document.getElementById('deliverySettingsGrid');
+            
+            grid.innerHTML = '';
+            
+            Object.keys(storeSettings).forEach(storeKey => {
+                const storeName = storeSettings[storeKey];
+                const settings = deliverySettings[storeKey];
+                
+                const storeDiv = document.createElement('div');
+                storeDiv.className = 'muji-card rounded-lg p-4';
+                
+                let html = `<h4 class="text-lg font-medium text-gray-800 mb-4 text-center">${storeName}</h4>`;
+                html += '<div class="space-y-3">';
+                
+                html += `
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">葷食便當</label>
+                            <input type="number" id="delivery_${storeKey}_meatLunchBox" 
+                                   class="w-full px-2 py-1 border border-gray-300 rounded text-center text-sm" 
+                                   value="${settings.meatLunchBox}" min="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">素食便當</label>
+                            <input type="number" id="delivery_${storeKey}_vegLunchBox" 
+                                   class="w-full px-2 py-1 border border-gray-300 rounded text-center text-sm" 
+                                   value="${settings.vegLunchBox}" min="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">葷食點心</label>
+                            <input type="number" id="delivery_${storeKey}_meatSnack" 
+                                   class="w-full px-2 py-1 border border-gray-300 rounded text-center text-sm" 
+                                   value="${settings.meatSnack}" min="0">
+                        </div>
+                        <div>
+                            <label class="block text-xs text-gray-600 mb-1">素食點心</label>
+                            <input type="number" id="delivery_${storeKey}_vegSnack" 
+                                   class="w-full px-2 py-1 border border-gray-300 rounded text-center text-sm" 
+                                   value="${settings.vegSnack}" min="0">
+                        </div>
+                    </div>
+                `;
+                
+                html += '</div>';
+                storeDiv.innerHTML = html;
+                grid.appendChild(storeDiv);
+            });
+            
+            modal.classList.remove('hidden');
+        }
+
+        // 關閉配送設定彈窗
+        function closeDeliverySettingsModal() {
+            document.getElementById('deliverySettingsModal').classList.add('hidden');
+        }
+
+        // 套用配送設定
+        function applyDeliverySettings() {
+            Object.keys(storeSettings).forEach(storeKey => {
+                const meatLunchBoxInput = document.getElementById(`delivery_${storeKey}_meatLunchBox`);
+                const vegLunchBoxInput = document.getElementById(`delivery_${storeKey}_vegLunchBox`);
+                const meatSnackInput = document.getElementById(`delivery_${storeKey}_meatSnack`);
+                const vegSnackInput = document.getElementById(`delivery_${storeKey}_vegSnack`);
+                
+                if (meatLunchBoxInput) deliverySettings[storeKey].meatLunchBox = parseInt(meatLunchBoxInput.value) || 0;
+                if (vegLunchBoxInput) deliverySettings[storeKey].vegLunchBox = parseInt(vegLunchBoxInput.value) || 0;
+                if (meatSnackInput) deliverySettings[storeKey].meatSnack = parseInt(meatSnackInput.value) || 0;
+                if (vegSnackInput) deliverySettings[storeKey].vegSnack = parseInt(vegSnackInput.value) || 0;
+            });
+            
+            updateDeliveryDisplays();
+            closeDeliverySettingsModal();
+            showNotification('各店配送設定已更新');
+        }
+
+        // 重置所有回報狀態
+        function resetAllDeliveryStatus() {
+            Object.keys(deliveryReports).forEach(storeKey => {
+                deliveryReports[storeKey] = {
+                    status: 'pending',
+                    firstReportTime: null,
+                    secondReportTime: null,
+                    incorrectReason: ''
+                };
+            });
+            
+            updateDeliveryDisplays();
+            showNotification('所有回報狀態已重置');
+        }
+
+        // 更新配送相關顯示
+        function updateDeliveryDisplays() {
+            updateDeliveryStatusOverview();
+            updateStoreDeliveryView();
+        }
+
+        // 更新大總管的配送狀態總覽
+        function updateDeliveryStatusOverview() {
+            const overview = document.getElementById('deliveryStatusOverview');
+            if (!overview) return;
+            
+            overview.innerHTML = '';
+            
+            Object.keys(storeSettings).forEach(storeKey => {
+                const storeName = storeSettings[storeKey];
+                const report = deliveryReports[storeKey];
+                
+                const statusCard = document.createElement('div');
+                statusCard.className = 'muji-card rounded-lg p-3';
+                
+                let statusText = '';
+                let statusColor = '';
+                
+                switch (report.status) {
+                    case 'pending':
+                        statusText = '待回報';
+                        statusColor = 'text-gray-600';
+                        break;
+                    case 'correct':
+                        statusText = '已確認正確';
+                        statusColor = 'text-green-600';
+                        break;
+                    case 'incorrect':
+                        statusText = '數量不正確';
+                        statusColor = 'text-red-600';
+                        break;
+                    case 'corrected':
+                        statusText = '已重新確認';
+                        statusColor = 'text-blue-600';
+                        break;
+                }
+                
+                let timeInfo = '';
+                if (report.firstReportTime) {
+                    timeInfo += `<p class="text-xs text-gray-500 mt-1">首次: ${report.firstReportTime}</p>`;
+                }
+                if (report.secondReportTime) {
+                    timeInfo += `<p class="text-xs text-gray-500">二次: ${report.secondReportTime}</p>`;
+                }
+                
+                statusCard.innerHTML = `
+                    <h5 class="text-sm font-medium text-gray-800">${storeName}</h5>
+                    <p class="text-sm ${statusColor} mt-1">${statusText}</p>
+                    ${timeInfo}
+                `;
+                
+                overview.appendChild(statusCard);
+            });
+        }
+
+        // 更新店小二的配送回報頁面
+        function updateStoreDeliveryView() {
+            if (currentRole === 'manager') return;
+            
+            // 更新配送數量顯示
+            const storeSettings = deliverySettings[currentStore];
+            document.getElementById('storeMeatLunchBox').textContent = `${storeSettings.meatLunchBox}個`;
+            document.getElementById('storeVegLunchBox').textContent = `${storeSettings.vegLunchBox}個`;
+            document.getElementById('storeMeatSnack').textContent = `${storeSettings.meatSnack}個`;
+            document.getElementById('storeVegSnack').textContent = `${storeSettings.vegSnack}個`;
+            
+            // 更新回報狀態
+            const report = deliveryReports[currentStore];
+            const statusDiv = document.getElementById('deliveryStatus');
+            const buttonsDiv = document.getElementById('deliveryButtons');
+            
+            statusDiv.innerHTML = '';
+            
+            const resetButton = document.getElementById('resetReportButton');
+            
+            if (report.status === 'pending') {
+                // 待回報狀態，顯示按鈕
+                buttonsDiv.classList.remove('hidden');
+                resetButton.classList.add('hidden');
+            } else if (report.status === 'correct') {
+                // 已確認正確
+                buttonsDiv.classList.add('hidden');
+                resetButton.classList.remove('hidden');
+                statusDiv.innerHTML = `
+                    <div class="text-center p-6 bg-green-50 rounded-lg">
+                        <div class="text-green-600 text-2xl mb-2">✓</div>
+                        <h4 class="text-lg font-medium text-green-800 mb-2">數量確認正確</h4>
+                        <p class="text-sm text-green-600">回報時間: ${report.firstReportTime}</p>
+                    </div>
+                `;
+            } else if (report.status === 'incorrect') {
+                // 數量不正確，等待重新確認
+                buttonsDiv.innerHTML = `
+                    <button class="muji-button px-8 py-3 rounded-lg text-lg" onclick="reportCorrect()">✓ 重新確認正確</button>
+                `;
+                resetButton.classList.remove('hidden');
+                statusDiv.innerHTML = `
+                    <div class="text-center p-6 bg-red-50 rounded-lg mb-4">
+                        <div class="text-red-600 text-2xl mb-2">✗</div>
+                        <h4 class="text-lg font-medium text-red-800 mb-2">數量不正確</h4>
+                        <p class="text-sm text-red-600 mb-2">回報時間: ${report.firstReportTime}</p>
+                        <p class="text-sm text-red-700 bg-red-100 p-2 rounded">原因: ${report.incorrectReason}</p>
+                    </div>
+                `;
+            } else if (report.status === 'corrected') {
+                // 已重新確認
+                buttonsDiv.classList.add('hidden');
+                resetButton.classList.remove('hidden');
+                statusDiv.innerHTML = `
+                    <div class="space-y-4">
+                        <div class="text-center p-4 bg-red-50 rounded-lg">
+                            <div class="text-red-600 text-xl mb-2">✗</div>
+                            <h4 class="text-md font-medium text-red-800 mb-2">首次數量不正確</h4>
+                            <p class="text-xs text-red-600 mb-2">回報時間: ${report.firstReportTime}</p>
+                            <p class="text-xs text-red-700 bg-red-100 p-2 rounded">原因: ${report.incorrectReason}</p>
+                        </div>
+                        <div class="text-center p-4 bg-green-50 rounded-lg">
+                            <div class="text-green-600 text-xl mb-2">✓</div>
+                            <h4 class="text-md font-medium text-green-800 mb-2">重新確認正確</h4>
+                            <p class="text-xs text-green-600">確認時間: ${report.secondReportTime}</p>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+
+        // 回報數量正確
+        function reportCorrect() {
+            const report = deliveryReports[currentStore];
+            const currentTime = new Date().toLocaleString('zh-TW');
+            
+            if (report.status === 'pending') {
+                // 首次回報正確
+                report.status = 'correct';
+                report.firstReportTime = currentTime;
+                showNotification('已確認數量正確');
+            } else if (report.status === 'incorrect') {
+                // 重新確認正確
+                report.status = 'corrected';
+                report.secondReportTime = currentTime;
+                showNotification('已重新確認數量正確');
+            }
+            
+            updateDeliveryDisplays();
+        }
+
+        // 回報數量不正確
+        function reportIncorrect() {
+            document.getElementById('incorrectReasonSection').classList.remove('hidden');
+            document.getElementById('deliveryButtons').classList.add('hidden');
+        }
+
+        // 提交不正確原因
+        function submitIncorrectReason() {
+            const reason = document.getElementById('incorrectReason').value.trim();
+            
+            if (!reason) {
+                alert('請填寫不正確的原因');
+                return;
+            }
+            
+            const report = deliveryReports[currentStore];
+            const currentTime = new Date().toLocaleString('zh-TW');
+            
+            report.status = 'incorrect';
+            report.firstReportTime = currentTime;
+            report.incorrectReason = reason;
+            
+            document.getElementById('incorrectReasonSection').classList.add('hidden');
+            document.getElementById('incorrectReason').value = '';
+            
+            updateDeliveryDisplays();
+            showNotification('已回報數量不正確');
+        }
+
+        // 取消不正確回報
+        function cancelIncorrectReport() {
+            document.getElementById('incorrectReasonSection').classList.add('hidden');
+            document.getElementById('deliveryButtons').classList.remove('hidden');
+            document.getElementById('incorrectReason').value = '';
+        }
+
+        // 重置單店回報狀態
+        function resetStoreReport() {
+            if (confirm('確定要重新回報嗎？這將清除目前的回報記錄。')) {
+                const report = deliveryReports[currentStore];
+                report.status = 'pending';
+                report.firstReportTime = null;
+                report.secondReportTime = null;
+                report.incorrectReason = '';
+                
+                // 重置按鈕狀態
+                const buttonsDiv = document.getElementById('deliveryButtons');
+                buttonsDiv.innerHTML = `
+                    <button class="muji-button px-8 py-3 rounded-lg text-lg" onclick="reportCorrect()">✓ 數量正確</button>
+                    <button class="muji-button-outline px-8 py-3 rounded-lg text-lg" onclick="reportIncorrect()">✗ 數量不正確</button>
+                `;
+                
+                updateDeliveryDisplays();
+                showNotification('回報狀態已重置，可重新回報');
+            }
+        }
+    </script>
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'962ff708521f49fa',t:'MTc1MzE1NjEzMy4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
